@@ -1,6 +1,3 @@
-import { doc, getDoc, setDoc } from 'firebase/firestore'
-import { db } from './firebase'
-
 /**
  * Taxas de cada loja, em %. Ficam em tenants/{id}/private/fees.
  * O lojista copia os valores do painel do Mercado Pago (ou outro gateway) uma única vez.
@@ -30,25 +27,6 @@ export const DEFAULT_FEES: FeeSettings = {
   credit12Pct: 0,
   pixPct: 0,
   boletoFixed: 0,
-}
-
-export async function loadFees(tenantId: string): Promise<FeeSettings & { configured: boolean }> {
-  const snap = await getDoc(doc(db, 'tenants', tenantId, 'private', 'fees'))
-  if (!snap.exists()) return { ...DEFAULT_FEES, configured: false }
-  return { ...DEFAULT_FEES, ...(snap.data() as Partial<FeeSettings>), configured: true }
-}
-
-export async function saveFees(tenantId: string, fees: FeeSettings) {
-  const { gateway, shopifyPlan, shopifyPct, creditPct, credit12Pct, pixPct, boletoFixed } = fees
-  await setDoc(doc(db, 'tenants', tenantId, 'private', 'fees'), {
-    gateway,
-    shopifyPlan,
-    shopifyPct,
-    creditPct,
-    credit12Pct,
-    pixPct,
-    boletoFixed,
-  })
 }
 
 const round = (v: number) => Math.round(v * 100) / 100
