@@ -1,0 +1,56 @@
+rules_version = '2';
+
+service cloud.firestore {
+  match /databases/{database}/documents {
+
+    function signedIn() {
+      return request.auth != null;
+    }
+
+    function isMember(tenantId) {
+      return signedIn()
+        && exists(/databases/$(database)/documents/tenants/$(tenantId)/members/$(request.auth.uid));
+    }
+
+    // domínio → loja (a vitrine descobre qual loja abrir). Só o backend grava.
+    match /domains/{host} {
+      allow read: if true;
+      allow write: if false;
+    }
+
+    // Configuração pública da vitrine (sem segredos). O lojista pode ajustar nome, cor, logo e WhatsApp.
+    match /tenants/{tenantId} {
+      allow read: if true;
+      allow update: if isMember(tenantId)
+        && request.resource.data.diff(resource.data).affectedKeys()
+             .hasOnly(['name', 'primaryColor', 'logoUrl', 'whatsapp']);
+      allow create, delete: if false;
+
+      match /members/{uid} {
+        allow read: if signedIn() && (request.auth.uid == uid || isMember(tenantId));
+        allow write: if false;
+      }
+
+      // Cadastro do cliente final: ele lê o próprio; o lojista lê todos. Só o backend grava.
+      match /customers/{uid} {
+        allow read: if signedIn() && (request.auth.uid == uid || isMember(tenantId));
+        allow write: if false;
+      }
+
+      // Configurações internas do lojista (ex.: taxas do simulador).
+      match /private/{docId} {
+        allow read, write: if isMember(tenantId);
+      }
+    }
+
+    // Credenciais da Shopify: nunca acessíveis pelo navegador.
+    match /tenantSecrets/{tenantId} {
+      allow read, write: if false;
+    }
+
+    match /users/{uid} {
+      allow read: if signedIn() && request.auth.uid == uid;
+      allow write: if false;
+    }
+  }
+}
