@@ -32,37 +32,92 @@ export function AdminPlatform() {
   )
 }
 
+type ShopPublication = { id: string; name: string; selected: boolean }
+type ShopInfo = { name: string; myshopifyDomain: string; planName?: string | null; publications: ShopPublication[] }
+
 function TenantRow({ id, name, shopDomain }: { id: string; name: string; shopDomain: string }) {
   const [result, setResult] = useState<string | null>(null)
+  const [publications, setPublications] = useState<ShopPublication[] | null>(null)
   const [busy, setBusy] = useState(false)
+  const [pubMsg, setPubMsg] = useState<{ ok: boolean; text: string } | null>(null)
 
   const test = async () => {
     setBusy(true)
     setResult(null)
+    setPubMsg(null)
     try {
-      const shop = await api<{ name: string; plan?: { publicDisplayName?: string } }>(`/api/platform/tenants/${id}/test`, {
-        method: 'POST',
-      })
-      setResult(`Conectado: ${shop.name}${shop.plan?.publicDisplayName ? ` (plano ${shop.plan.publicDisplayName})` : ''}`)
+      const shop = await api<ShopInfo>(`/api/platform/tenants/${id}/test`, { method: 'POST' })
+      setResult(`Conectado: ${shop.name}${shop.planName ? ` (plano ${shop.planName})` : ''}`)
+      setPublications(shop.publications)
     } catch (e) {
       setResult(`Falhou: ${(e as Error).message}`)
+      setPublications(null)
+    } finally {
+      setBusy(false)
+    }
+  }
+
+  const toggle = (pubId: string) =>
+    setPublications((list) => list?.map((p) => (p.id === pubId ? { ...p, selected: !p.selected } : p)) ?? null)
+
+  const savePublications = async () => {
+    if (!publications) return
+    setBusy(true)
+    setPubMsg(null)
+    try {
+      await api(`/api/platform/tenants/${id}/publications`, {
+        method: 'PUT',
+        body: { publicationIds: publications.filter((p) => p.selected).map((p) => p.id) },
+      })
+      setPubMsg({ ok: true, text: 'Canais salvos. Os próximos produtos salvos serão publicados neles.' })
+    } catch (e) {
+      setPubMsg({ ok: false, text: (e as Error).message })
     } finally {
       setBusy(false)
     }
   }
 
   return (
-    <div className="flex flex-wrap items-center gap-3 p-4">
-      <div className="flex-1">
-        <p className="font-medium">{name}</p>
-        <p className="text-xs text-stone-500">
-          {id} · {shopDomain}
-        </p>
-        {result && <p className="mt-1 text-xs text-stone-600">{result}</p>}
+    <div className="space-y-3 p-4">
+      <div className="flex flex-wrap items-center gap-3">
+        <div className="flex-1">
+          <p className="font-medium">{name}</p>
+          <p className="text-xs text-stone-500">
+            {id} · {shopDomain}
+          </p>
+          {result && <p className="mt-1 text-xs text-stone-600">{result}</p>}
+        </div>
+        <button className="btn-ghost py-1.5" disabled={busy} onClick={test}>
+          {busy ? 'Aguarde…' : 'Testar conexão'}
+        </button>
       </div>
-      <button className="btn-ghost py-1.5" disabled={busy} onClick={test}>
-        {busy ? 'Testando…' : 'Testar conexão'}
-      </button>
+
+      {publications && (
+        <div className="rounded-lg bg-stone-50 p-3">
+          <p className="text-xs font-medium text-stone-700">Canais de vendas onde os produtos aparecem</p>
+          <p className="mb-2 text-xs text-stone-500">
+            Marque o canal do token Storefront do site (normalmente &quot;Headless&quot;). Sem canal marcado, o produto não aparece
+            na vitrine.
+          </p>
+          {publications.length === 0 && <p className="text-xs text-stone-500">A loja não tem canais de vendas.</p>}
+          <div className="flex flex-wrap gap-x-4 gap-y-1">
+            {publications.map((p) => (
+              <label key={p.id} className="flex items-center gap-1.5 text-sm">
+                <input type="checkbox" checked={p.selected} onChange={() => toggle(p.id)} />
+                {p.name}
+              </label>
+            ))}
+          </div>
+          {pubMsg && (
+            <Alert tone={pubMsg.ok ? 'success' : 'error'} className="mt-2">
+              {pubMsg.text}
+            </Alert>
+          )}
+          <button className="btn-primary mt-2 py-1.5" disabled={busy} onClick={savePublications}>
+            Salvar canais
+          </button>
+        </div>
+      )}
     </div>
   )
 }
