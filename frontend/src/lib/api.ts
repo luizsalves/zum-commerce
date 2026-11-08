@@ -16,17 +16,19 @@ type ApiOptions = {
   tenantId?: string
 }
 
-/** Chamada à API em C#: envia o token do Firebase e a loja (X-Tenant-Id). */
+/** Chamada à API em C#: envia o token do Firebase e a loja (X-Tenant-Id). Corpo FormData vai como upload de arquivo. */
 export async function api<T>(path: string, opts: ApiOptions = {}): Promise<T> {
   const token = await auth.currentUser?.getIdToken()
-  const headers: Record<string, string> = { 'Content-Type': 'application/json' }
+  const isForm = opts.body instanceof FormData
+  // Com FormData, o navegador define o Content-Type (multipart) com o separador certo.
+  const headers: Record<string, string> = isForm ? {} : { 'Content-Type': 'application/json' }
   if (token) headers.Authorization = `Bearer ${token}`
   if (opts.tenantId) headers['X-Tenant-Id'] = opts.tenantId
 
   const res = await fetch(BASE + path, {
     method: opts.method ?? (opts.body !== undefined ? 'POST' : 'GET'),
     headers,
-    body: opts.body !== undefined ? JSON.stringify(opts.body) : undefined,
+    body: opts.body === undefined ? undefined : isForm ? (opts.body as FormData) : JSON.stringify(opts.body),
   })
 
   if (res.status === 204) return undefined as T

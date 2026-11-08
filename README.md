@@ -4,7 +4,7 @@ Vitrine e painel da plataforma SaaS da Zum Web Studio para lojas Shopify. A API 
 
 | Aplicação | Caminho | Stack |
 |---|---|---|
-| Front-end (este repositório) | `zum-commerce/frontend` | React 19, TypeScript, Vite, Tailwind 4, Firebase (Auth, Firestore, Storage), Shopify Storefront API |
+| Front-end (este repositório) | `zum-commerce/frontend` | React 19, TypeScript, Vite, Tailwind 4, Firebase (Auth, Firestore), Shopify Storefront API |
 | Back-end | `zum-commerce-api/backend` | ASP.NET Core (.NET 10), Firestore, Shopify Admin API |
 
 ## Rodar local
@@ -43,12 +43,12 @@ Em desenvolvimento, o Vite redireciona `/api` para a API local, então não é p
 
 ```bash
 cd frontend && npm run build && cd ..
-firebase deploy --only hosting,firestore:rules,storage
+firebase deploy --only hosting,firestore:rules
 ```
 
 O `firebase.json` redireciona `/api/**` para o serviço `zum-commerce-api` no Cloud Run (`southamerica-east1`). Assim, front e API ficam no mesmo domínio.
 
-As regras de segurança (`firestore.rules`, `storage.rules`) ficam neste repositório porque são publicadas junto com o site.
+As regras do Firestore (`firestore.rules`) ficam neste repositório porque são publicadas junto com o site. O Storage não é usado: as fotos de produto vão pela API direto para a Shopify.
 
 Mais detalhes: [ARCHITECTURE.md](ARCHITECTURE.md) e [ESCOPO_DO_PROJETO.md](ESCOPO_DO_PROJETO.md). Instruções para IAs de código: [AGENTS.md](AGENTS.md).
 

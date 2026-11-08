@@ -1,4 +1,3 @@
-import { getDownloadURL, ref, uploadBytes } from 'firebase/storage'
 import { useEffect, useMemo, useState, type FormEvent } from 'react'
 import { Link, useNavigate, useSearchParams } from 'react-router-dom'
 import { useAdmin } from '../../../contexts/AdminContext'
@@ -7,10 +6,10 @@ import { FeeSimulator } from '../../organisms/FeeSimulator'
 import { api } from '../../../lib/api'
 import { DEFAULT_FEES, type FeeSettings } from '../../../lib/fees'
 import { loadFees } from '../../../lib/feesStore'
-import { storage } from '../../../lib/firebase'
 import { parseMoney } from '../../../lib/format'
+import { shrinkImage } from '../../../lib/imageResize'
 import { PRODUCT_STATUS } from '../../../data/productStatus'
-import type { Product, ProductImage, ProductStatus } from '../../../types'
+import type { Product, ProductImage, ProductStatus, UploadedImage } from '../../../types'
 import { Alert } from '../../atoms/Alert'
 import { htmlToText, textToHtml } from '../../../lib/richText'
 import { cleanOptions, emptyRow, keyOf, syncVariants, type OptionRow, type VariantRow } from '../../../lib/variants'
@@ -44,6 +43,8 @@ function ProductFormInner() {
   const [tags, setTags] = useState('')
   const [status, setStatus] = useState<ProductStatus>('ACTIVE')
   const [images, setImages] = useState<ProductImage[]>([])
+  // URL devolvida pelo envio → prévia local. A URL da Shopify só abre no navegador depois de salvar.
+  const [previews, setPreviews] = useState<Record<string, string>>({})
   const [optionRows, setOptionRows] = useState<OptionRow[]>([])
   const [variants, setVariants] = useState<VariantRow[]>([emptyRow()])
   const [simIndex, setSimIndex] = useState(0)
@@ -109,15 +110,16 @@ function ProductFormInner() {
     setUploading(true)
     setError(null)
     try {
-      const uploaded: ProductImage[] = []
-      for (const file of Array.from(files)) {
-        if (!file.type.startsWith('image/')) continue
-        const safeName = file.name.toLowerCase().replace(/[^a-z0-9.]+/g, '-')
-        const fileRef = ref(storage, `tenants/${tenantId}/products/${crypto.randomUUID()}-${safeName}`)
-        await uploadBytes(fileRef, file, { contentType: file.type })
-        uploaded.push({ id: null, url: await getDownloadURL(fileRef), alt: title || null })
+      // Uma por vez: cada foto já aparece na lista assim que a Shopify recebe.
+      for (const original of Array.from(files)) {
+        if (!original.type.startsWith('image/')) continue
+        const file = await shrinkImage(original)
+        const form = new FormData()
+        form.append('file', file)
+        const { url } = await api<UploadedImage>('/api/admin/product/image', { tenantId, body: form })
+        setPreviews((prev) => ({ ...prev, [url]: URL.createObjectURL(file) }))
+        setImages((prev) => [...prev, { id: null, url, alt: title || null }])
       }
-      setImages((prev) => [...prev, ...uploaded])
     } catch (e) {
       setError('Falha ao enviar a imagem: ' + (e as Error).message)
     } finally {
@@ -270,7 +272,12 @@ function ProductFormInner() {
               <div className="mt-4 grid grid-cols-3 gap-3 sm:grid-cols-5">
                 {images.map((img, i) => (
                   <div key={img.id ?? img.url ?? i} className="group relative aspect-square overflow-hidden rounded-xl bg-stone-100">
-                    {img.url && <img src={img.url} alt="" className="h-full w-full object-cover" />}
+                    {img.url ? (
+                      <img src={previews[img.url] ?? img.url} alt="" className="h-full w-full object-cover" />
+                    ) : (
+                      // Foto recém-salva: a Shopify ainda está processando e devolve a URL em alguns segundos.
+                      <span className="grid h-full place-items-center text-xs text-stone-500">Processando…</span>
+                    )}
                     {i === 0 && (
                       <span className="absolute left-1 top-1 rounded bg-white/90 px-1.5 text-[10px] font-medium">Capa</span>
                     )}

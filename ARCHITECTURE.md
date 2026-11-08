@@ -8,8 +8,7 @@ flowchart LR
   F -->|produtos e carrinho| SF[Shopify Storefront API]
   F -->|login| AUTH[Firebase Auth]
   F -->|taxas, config da loja| FS[(Firestore)]
-  F -->|fotos de produto| ST[Firebase Storage]
-  F -->|JWT + X-Tenant-Id| API[zum-commerce-api]
+  F -->|JWT + X-Tenant-Id, fotos de produto| API[zum-commerce-api]
   API --> ADMIN[Shopify Admin API]
   F -->|pagamento| CO[Checkout Shopify]
 ```
@@ -46,7 +45,7 @@ zum-commerce/
         │       ├── store/       Home, ProductPage, Login, Register, Checkout, Account
         │       └── admin/       AdminProducts, ProductForm, AdminCustomers, AdminFees, AdminPlatform
         ├── data/                textos e listas fixas (status de produto, campos de taxa, planos Shopify)
-        ├── lib/                 api, firebase, storefront, tenant, fees, variants, richText, format, safeStorage (+ testes)
+        ├── lib/                 api, firebase, storefront, tenant, fees, variants, richText, format, imageResize, safeStorage (+ testes)
         └── types/               tipos compartilhados (espelham os contratos da API)
 ```
 
@@ -67,12 +66,12 @@ A organização segue **Atomic Design**: átomos sem regra de negócio → molé
 
 1. **Navegar e montar carrinho**: `TenantContext` resolve a loja, `StoreRoutes` monta a vitrine e `CartContext` cria/atualiza o carrinho na Shopify, com o id salvo em `localStorage` por loja.
 2. **Compra só com cadastro**: em "Finalizar compra", sem login vai para `/entrar`. Logado mas sem cadastro na loja, vai para `/cadastro`, onde `POST /api/store/customers/register` cria o Customer na Shopify. Em `/checkout`, `cartBuyerIdentityUpdate` vincula o cliente ao carrinho e redireciona para o checkout da Shopify.
-3. **Cadastro de produto**: em `ProductForm`, as fotos vão para o Firebase Storage, `lib/variants.ts` gera a grade de variações e `FeeSimulator` mostra o líquido por forma de pagamento. Ao salvar, `POST /api/admin/product` chama o `productSet` da Shopify.
+3. **Cadastro de produto**: em `ProductForm`, cada foto é diminuída no navegador (`lib/imageResize.ts`) e enviada por `POST /api/admin/product/image`, que guarda o arquivo na Shopify e devolve a URL (sem Firebase Storage). `lib/variants.ts` gera a grade de variações e `FeeSimulator` mostra o líquido por forma de pagamento. Ao salvar, `POST /api/admin/product` chama o `productSet` da Shopify.
 4. **Plataforma (Zum)**: `AdminPlatform` cadastra lojas, libera acesso ao painel e testa a conexão com a Shopify.
 
 ## Segurança
 
 - Nenhum segredo no navegador. O Client Secret da Shopify só passa uma vez, no cadastro da loja, e fica criptografado na API.
 - `firestore.rules`: config pública da loja é legível por todos; taxas só pelos membros da loja; `tenantSecrets` bloqueado para o front.
-- `storage.rules`: só membros da loja enviam fotos (até 10 MB, apenas imagens).
+- Fotos de produto passam pela API, que confere se o usuário é membro da loja, o formato e o limite de 20 MB. O `storage.rules` ficou sem uso, porque o Storage exige o plano Blaze.
 - Redirecionamentos após login aceitam só caminhos internos (`safeNext`).

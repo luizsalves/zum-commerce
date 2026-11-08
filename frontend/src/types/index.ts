@@ -39,6 +39,9 @@ export type Variant = {
 
 export type ProductImage = { id: string | null; url: string | null; alt: string | null }
 
+/** Resposta do envio de foto: URL para usar como imagem nova do produto. */
+export type UploadedImage = { url: string }
+
 export type Product = {
   id: string | null
   title: string
